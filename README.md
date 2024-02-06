@@ -14,8 +14,8 @@ I only wanted the planealert functionality so upa doesn't do anything similar to
 
 ## What it might do in the future
 
-- Photos. upa wasn't built to use the photos in the plane-alert-db. While they're nice, I'm not sure about the license to repost them etc. It may be possible to use the planespotter api in the future to check for photos similar to what tar1090 does, but their terms of service don't allow reposting the photos to mastodon so I'd have to just link them. And they're already on the tar1090 page linked in the post so I'm not sure if I'll add this.
-- Logging - presently there is none!
+- Photos. upa wasn't built to use the photos in the plane-alert-db. While they're nice, I'm not sure about the license to repost them etc. It may be possible to use the planespotter api in the future to check for photos similar to what tar1090 does, but their terms of service don't allow reposting the photos to mastodon so I'd have to just link them. upa defaults to planespotters tar1090 interface which has larger photos by default though so this sort closes the gap.
+- Logging - presently there is ~~none!~~ some!
 - Optimizations, functions, fun basic things like that.
 
 ## Running it

@@ -4,6 +4,7 @@ import csv
 import datetime
 import io
 import json
+import logging
 import os
 import sqlite3
 import time
@@ -13,6 +14,7 @@ import requests
 
 # Download and build database
 # First lets fetch the csvfile and get it into shape
+logging.info("Downloading alert csv")
 database_url = os.environ.get(
     "UPA_PADATABASE_URL",
     "https://github.com/sdr-enthusiasts/plane-alert-db/raw/main/plane-alert-db.csv",
@@ -24,7 +26,7 @@ r = requests.get(
 csvfile = io.StringIO(r.text)
 contents = csv.reader(csvfile)
 next(contents)  # Skip the header row in the csv file
-
+logging.info("Building database")
 # Now let's build the sqlite db
 connection = sqlite3.connect(":memory:")
 cursor = connection.cursor()
@@ -52,13 +54,16 @@ cursor.executemany(INSERT_RECORDS, contents)
 cursor.execute("ALTER TABLE planes ADD COLUMN lastseen NOT NULL DEFAULT 0;")
 connection.commit()
 
-# Poll file, evaluate, notify and sleep 5 mins #
+# Poll file, evaluate, notify and sleep 5 mins, repeat
 json_url = os.environ.get("UPA_JSON_URL", "http://ultrafeeder/data/aircraft.json")
 notify_url = os.environ.get("UPA_NOTIFY_URL", "ntfy://upaunconfigured/?priority=min")
+logging.info("Database complete, waiting 60 seconds for ultrafeeder start-up")
+time.sleep(
+    60
+)  # Take a 60 second nap while first starting up to give ultrafeeder time to start
 while 1:
-    response = requests.get(
-        json_url, timeout=5
-    )
+    logging.info("Starting a polling loop")
+    response = requests.get(json_url, timeout=5)
     adsbdata = json.loads(response.text)
     # Build timestamp and date from json file for eventual notification URL
     jsontimestamp = int(adsbdata["now"])
@@ -95,7 +100,7 @@ while 1:
                 f"has been detected with ICAO #{icao}, "
                 f"Registration #{registration} "
                 #  f"operating Flight Number {flight}. "
-                f"https://globe.airplanes.live/?icao={icao}&showTrace={jsontoday}&zoom=7&timestamp={jsontimestamp} "
+                f"https://radar.planespotters.net/?icao={icao}&showTrace={jsontoday}&zoom=7&timestamp={jsontimestamp} "
                 f"#planealert"
             )
             apobj = apprise.Apprise()
@@ -110,4 +115,5 @@ while 1:
                 (jsontimestamp, icao),
             )
             connection.commit()
+    logging.info("Loop complete, sleeping 5 minutes")
     time.sleep(300)
