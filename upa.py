@@ -128,6 +128,9 @@ def poll_planes():
                 f"#planealert"
             )
             print(notification)
+            notify_url = os.environ.get(
+                "UPA_NOTIFY_URL", "ntfy://upaunconfigured/?priority=min"
+            )
             apobj = apprise.Apprise()
             apobj.add(notify_url)
             apobj.notify(
@@ -137,9 +140,6 @@ def poll_planes():
 
 def main():
     build_database()
-    notify_url = os.environ.get(
-        "UPA_NOTIFY_URL", "ntfy://upaunconfigured/?priority=min"
-    )
     while 1:
         poll_planes()
         print("Loop complete, sleeping 90 seconds")
