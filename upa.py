@@ -17,6 +17,7 @@ import requests
 # Database initialized globally to move between functions
 sqldb = sqlite3.connect(":memory:")
 
+
 def build_database():
     print("Downloading alert csv")
     database_url = os.environ.get(
