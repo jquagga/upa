@@ -25,11 +25,11 @@ The python can be run essentially anywhere that has access to your tar1090 webse
 Here's a section of `docker-compose.yml` I paste into the overall file running ultrafeeder and friends. The mastodon key is what you'd generate for your mastodon bot. Of course if you're using another platform, you can set all of that up. You can also support multiple services as once; just comma separate the list of apprise urls.
 
 ```yaml
-upa:
-  image: ghcr.io/jquagga/upa:main
-  container_name: upa
-  hostname: upa
-  restart: unless-stopped
-  environment:
-    - UPA_NOTIFY_URL=mastodons://API_KEY@airwaves.social?visibility=unlisted
+  upa:
+    image: ghcr.io/jquagga/upa:main
+    container_name: upa
+    hostname: upa
+    restart: unless-stopped
+    environment:
+      - UPA_NOTIFY_URL=mastodons://API_KEY@airwaves.social?visibility=unlisted
 ```
