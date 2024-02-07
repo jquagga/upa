@@ -4,7 +4,6 @@ import csv
 import datetime
 import io
 import json
-import logging
 import os
 import sqlite3
 import time
@@ -14,7 +13,7 @@ import requests
 
 # Download and build database
 # First lets fetch the csvfile and get it into shape
-logging.info("Downloading alert csv")
+print("Downloading alert csv")
 database_url = os.environ.get(
     "UPA_PADATABASE_URL",
     "https://github.com/sdr-enthusiasts/plane-alert-db/raw/main/plane-alert-db.csv",
@@ -26,7 +25,7 @@ r = requests.get(
 csvfile = io.StringIO(r.text)
 contents = csv.reader(csvfile)
 next(contents)  # Skip the header row in the csv file
-logging.info("Building database")
+print("Building database")
 # Now let's build the sqlite db
 connection = sqlite3.connect(":memory:")
 cursor = connection.cursor()
@@ -57,12 +56,12 @@ connection.commit()
 # Poll file, evaluate, notify and sleep 5 mins, repeat
 json_url = os.environ.get("UPA_JSON_URL", "http://ultrafeeder/data/aircraft.json")
 notify_url = os.environ.get("UPA_NOTIFY_URL", "ntfy://upaunconfigured/?priority=min")
-logging.info("Database complete, waiting 60 seconds for ultrafeeder start-up")
+print("Database complete, waiting 60 seconds for ultrafeeder start-up")
 time.sleep(
     60
 )  # Take a 60 second nap while first starting up to give ultrafeeder time to start
 while 1:
-    logging.info("Starting a polling loop")
+    print("Starting a polling loop")
     response = requests.get(json_url, timeout=5)
     adsbdata = json.loads(response.text)
     # Build timestamp and date from json file for eventual notification URL
@@ -76,22 +75,41 @@ while 1:
     for plane in adsbdata["aircraft"]:
         # json is all lowercase, CSV file is all upcase so lets match.
         icao = plane["hex"].upper()
-        datapacket = cursor.execute(
+        planealert = cursor.execute(
             "SELECT * FROM planes WHERE icao=? AND lastseen<?",
             (icao, twohoursago),
         ).fetchall()
-        if datapacket:
+        if planealert:
             # Unbox the SQL data fields into registration, operator, etc
-            for info in datapacket:
-                registration = info[1]
-                operator = info[2].replace(
-                    " ", "_"
+            # Unbox the json data fields into registration, operator, etc
+            # FIXME: This needs to be a function since upf will do the same thing.
+            if "r" in plane.keys():
+                registration = (
+                    plane["r"].upper().strip()
+                )  # Plane Registration from json data if it's there.
+            else:
+                registration = ""
+
+            if "ownOp" in plane.keys():
+                operator = (
+                    plane["ownOp"].upper().strip().replace(" ", "_")
                 )  # Replace spaces with underscores to hashtags work.
-                planetype = info[3]
-                # if plane.get("flight"):
-                #     flight = plane[
-                #         "flight"
-                #     ].upper()  # Flight number from json data if it's there.
+            else:
+                operator = ""
+
+            if "desc" in plane.keys():
+                planetype = plane["desc"].strip()
+            elif "t" in plane.keys():
+                planetype = plane["t"].upper().strip()
+            else:
+                planetype = ""
+
+            if "flight" in plane.keys():
+                flight = (
+                    plane["flight"].upper().strip()
+                )  # Flight number from json data if it's there.
+            else:
+                flight = ""
 
             # Notify
             notification = (
@@ -99,10 +117,11 @@ while 1:
                 f"operated by #{operator} "
                 f"has been detected with ICAO #{icao}, "
                 f"Registration #{registration} "
-                #  f"operating Flight Number {flight}. "
+                f"operating Flight Number #{flight}. "
                 f"https://radar.planespotters.net/?icao={icao}&showTrace={jsontoday}&zoom=7&timestamp={jsontimestamp} "
                 f"#planealert"
             )
+            print(notification)
             apobj = apprise.Apprise()
             apobj.add(notify_url)
             apobj.notify(
@@ -115,5 +134,5 @@ while 1:
                 (jsontimestamp, icao),
             )
             connection.commit()
-    logging.info("Loop complete, sleeping 5 minutes")
-    time.sleep(300)
+    print("Loop complete, sleeping 90 seconds")
+    time.sleep(90)
