@@ -1,4 +1,7 @@
-#!/usr/bin/python
+#!/usr/bin/env python
+
+"""upa.py: microplane alert. Checks sdr ultrafeeder output 
+for interesting planes and issues notifications."""
 
 import csv
 import datetime
@@ -11,57 +14,53 @@ import time
 import apprise
 import requests
 
-# Download and build database
-# First lets fetch the csvfile and get it into shape
-print("Downloading alert csv")
-database_url = os.environ.get(
-    "UPA_PADATABASE_URL",
-    "https://github.com/sdr-enthusiasts/plane-alert-db/raw/main/plane-alert-db.csv",
-)
-r = requests.get(
-    database_url,
-    timeout=5,
-)
-csvfile = io.StringIO(r.text)
-contents = csv.reader(csvfile)
-next(contents)  # Skip the header row in the csv file
-print("Building database")
-# Now let's build the sqlite db
-connection = sqlite3.connect(":memory:")
-cursor = connection.cursor()
-cursor.execute(
-    """
-    CREATE TABLE planes (
-    icao TEXT,
-    registration TEXT,
-    operator TEXT,
-    type TEXT,
-    icao_type TEXT,
-    cmpg TEXT,
-    tag1 TEXT,
-    tag2 TEXT,
-    tag3 TEXT,
-    category TEXT,
-    link TEXT
-)
-"""
-)
-INSERT_RECORDS = "INSERT INTO planes (icao, registration, operator, type, icao_type, cmpg, tag1, tag2, tag3, category, link) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-# # This imports the "Stock csv into sqlite"
-cursor.executemany(INSERT_RECORDS, contents)
-# # And this adds a "lastseen column" at the end.
-cursor.execute("ALTER TABLE planes ADD COLUMN lastseen NOT NULL DEFAULT 0;")
-connection.commit()
+# Database initialized globally to move between functions
+sqldb = sqlite3.connect(":memory:")
 
-# Poll file, evaluate, notify and sleep 5 mins, repeat
-json_url = os.environ.get("UPA_JSON_URL", "http://ultrafeeder/data/aircraft.json")
-notify_url = os.environ.get("UPA_NOTIFY_URL", "ntfy://upaunconfigured/?priority=min")
-print("Database complete, waiting 60 seconds for ultrafeeder start-up")
-time.sleep(
-    60
-)  # Take a 60 second nap while first starting up to give ultrafeeder time to start
-while 1:
+def build_database():
+    print("Downloading alert csv")
+    database_url = os.environ.get(
+        "UPA_PADATABASE_URL",
+        "https://github.com/sdr-enthusiasts/plane-alert-db/raw/main/plane-alert-db.csv",
+    )
+    r = requests.get(
+        database_url,
+        timeout=5,
+    )
+    csvfile = io.StringIO(r.text)
+    contents = csv.reader(csvfile)
+    next(contents)  # Skip the header row in the csv file
+    print("Building database")
+    cursor = sqldb.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE planes (
+        icao TEXT,
+        registration TEXT,
+        operator TEXT,
+        type TEXT,
+        icao_type TEXT,
+        cmpg TEXT,
+        tag1 TEXT,
+        tag2 TEXT,
+        tag3 TEXT,
+        category TEXT,
+        link TEXT
+    )
+    """
+    )
+    INSERT_RECORDS = "INSERT INTO planes (icao, registration, operator, type, icao_type, cmpg, tag1, tag2, tag3, category, link) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    # # This imports the "Stock csv into sqlite"
+    cursor.executemany(INSERT_RECORDS, contents)
+    # # And this adds a "lastseen column" at the end.
+    cursor.execute("ALTER TABLE planes ADD COLUMN lastseen NOT NULL DEFAULT 0;")
+    sqldb.commit()
+
+
+def poll_planes():
     print("Starting a polling loop")
+    cursor = sqldb.cursor()
+    json_url = os.environ.get("UPA_JSON_URL", "http://ultrafeeder/data/aircraft.json")
     response = requests.get(json_url, timeout=5)
     adsbdata = json.loads(response.text)
     # Build timestamp and date from json file for eventual notification URL
@@ -80,9 +79,7 @@ while 1:
             (icao, twohoursago),
         ).fetchall()
         if planealert:
-            # Unbox the SQL data fields into registration, operator, etc
             # Unbox the json data fields into registration, operator, etc
-            # FIXME: This needs to be a function since upf will do the same thing.
             if "r" in plane.keys():
                 registration = (
                     plane["r"].upper().strip()
@@ -111,7 +108,15 @@ while 1:
             else:
                 flight = ""
 
-            # Notify
+            # This sets the lastseen time to now() in unix time.
+            # Used for the 2 hour cooldown.
+            cursor = sqldb.cursor()
+            cursor.execute(
+                "UPDATE planes set lastseen=? WHERE icao=?",
+                (jsontimestamp, icao),
+            )
+            sqldb.commit()
+
             notification = (
                 f"A {planetype} "
                 f"operated by #{operator} "
@@ -127,12 +132,18 @@ while 1:
             apobj.notify(
                 body=notification,
             )
-            # This sets the lastseen time to now() in unix time.
-            # Used for the 2 hour cooldown.
-            cursor.execute(
-                "UPDATE planes set lastseen=? WHERE icao=?",
-                (jsontimestamp, icao),
-            )
-            connection.commit()
-    print("Loop complete, sleeping 90 seconds")
-    time.sleep(90)
+
+
+def main():
+    build_database()
+    notify_url = os.environ.get(
+        "UPA_NOTIFY_URL", "ntfy://upaunconfigured/?priority=min"
+    )
+    while 1:
+        poll_planes()
+        print("Loop complete, sleeping 90 seconds")
+        time.sleep(90)
+
+
+if __name__ == "__main__":
+    main()
