@@ -21,3 +21,15 @@ I only wanted the planealert functionality so upa doesn't do anything similar to
 ## Running it
 
 The python can be run essentially anywhere that has access to your tar1090 webserver so it doesn't have to run alongside the sdr-enthusiasts stack. However, for sheer simplicity, that's probably where I think most people would dump it. It is configured by 3 environmental variables and if you're using it in the ultrafeeder stack, you probably only need to configure `UPA_NOTIFY_URL`. This is a comma-separated list of apprise URLs so take a look at the [mastodon](https://github.com/caronc/apprise/wiki/Notify_mastodon) examples. But apprise will happily post to many services (although note the format is different that planefence, especially compared to their better discord notifications).
+
+Here's a section of `docker-compose.yml` I paste into the overall file running ultrafeeder and friends. The mastodon key is what you'd generate for your mastodon bot. Of course if you're using another platform, you can set all of that up. You can also support multiple services as once; just comma separate the list of apprise urls.
+
+```yaml
+upa:
+  image: ghcr.io/jquagga/upa:main
+  container_name: upa
+  hostname: upa
+  restart: unless-stopped
+  environment:
+    - UPA_NOTIFY_URL=mastodons://API_KEY@airwaves.social?visibility=unlisted
+```
