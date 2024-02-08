@@ -4,7 +4,7 @@ dependencies = [
   "apprise",
   "requests",
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.12"
 authors = [
   {name = "Justin Settle"}
 ]
@@ -15,4 +15,4 @@ keywords = ["adsb", "planealert"]
 
 [tool.black]
 line-length = 88
-target-version = ['py38']
+target-version = ['py312']

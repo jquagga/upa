@@ -56,90 +56,134 @@ def build_database():
     # # And this adds a "lastseen column" at the end.
     cursor.execute("ALTER TABLE planes ADD COLUMN lastseen NOT NULL DEFAULT 0;")
     sqldb.commit()
+    global pfdb
+    pfdb = {}  # Empty global dictionary to track lastseen for planefence
 
 
 def poll_planes():
     print("Starting a polling loop")
-    cursor = sqldb.cursor()
     json_url = os.environ.get("UPA_JSON_URL", "http://ultrafeeder/data/aircraft.json")
     response = requests.get(json_url, timeout=5)
     adsbdata = json.loads(response.text)
-    # Build timestamp and date from json file for eventual notification URL
+    global jsontimestamp  # Needs to be global as it's not in the plane object
     jsontimestamp = int(adsbdata["now"])
-    jsontoday = datetime.datetime.fromtimestamp(jsontimestamp, datetime.UTC).strftime(
-        "%Y-%m-%d"
-    )
-    twohoursago = jsontimestamp - 7200
     # The json file format is a nest of all of the planes under 'aircraft'
     # So we need to loop through each entity in aircraft
     for plane in adsbdata["aircraft"]:
-        # json is all lowercase, CSV file is all upcase so lets match.
+        if planefence(plane):
+            range = plane["r_dst"]
+            notify(plane, range)
+        elif planealert(plane):
+            notify(plane, 0)
+
+
+def planealert(plane):
+    icao = plane["hex"].upper()
+    twohoursago = jsontimestamp - 7200
+    cursor = sqldb.cursor()
+    papresent = cursor.execute(
+        "SELECT * FROM planes WHERE icao=? AND lastseen<?",
+        (icao, twohoursago),
+    ).fetchall()
+    if papresent:
+        cursor.execute(
+            "UPDATE planes set lastseen=? WHERE icao=?",
+            (jsontimestamp, icao),
+        )
+        sqldb.commit()
+        return 1
+    else:
+        return 0
+
+
+def planefence(plane):
+    # First check if the plane even has a range value. If not,
+    # give up now.
+    if "r_dst" in plane.keys():
         icao = plane["hex"].upper()
-        planealert = cursor.execute(
-            "SELECT * FROM planes WHERE icao=? AND lastseen<?",
-            (icao, twohoursago),
-        ).fetchall()
-        if planealert:
-            # Unbox the json data fields into registration, operator, etc
-            if "r" in plane.keys():
-                registration = (
-                    plane["r"].upper().strip()
-                )  # Plane Registration from json data if it's there.
+        twohoursago = jsontimestamp - 7200
+        range = plane["r_dst"]
+        # Walking through the if's in order
+        # First, are we closer than 2 nmi?
+        if range <= 2:
+            # If we are closer, is this ICAO already in
+            # the dictionary (ie, we've seen it before?)
+            if icao in pfdb.keys():
+                # If it is in the dictionary, has it been more than
+                # 2 hours?  If so update lastseen and return 1
+                if pfdb[icao] < twohoursago:
+                    pfdb[icao] = jsontimestamp
+                    return 1
+                # If it hasn't been 2 hours, return 0.
+                else:
+                    return 0
+            # If the icao isn't in the dictionary it's new!
+            # so add its lastseen and return 1
             else:
-                registration = ""
+                pfdb[icao] = jsontimestamp
+                return 1
+        # If range isn't 2, return 0
+        else:
+            return 0
+    # And if we don't have a range figure at all, return 0
+    else:
+        return 0
 
-            if "ownOp" in plane.keys():
-                operator = (
-                    plane["ownOp"].upper().strip().replace(" ", "_")
-                )  # Replace spaces with underscores to hashtags work.
-            else:
-                operator = ""
 
-            if "desc" in plane.keys():
-                planetype = plane["desc"].strip()
-            elif "t" in plane.keys():
-                planetype = plane["t"].upper().strip()
-            else:
-                planetype = ""
-
-            if "flight" in plane.keys():
-                flight = (
-                    plane["flight"].upper().strip()
-                )  # Flight number from json data if it's there.
-            else:
-                flight = ""
-
-            # This sets the lastseen time to now() in unix time.
-            # Used for the 2 hour cooldown.
-            cursor = sqldb.cursor()
-            cursor.execute(
-                "UPDATE planes set lastseen=? WHERE icao=?",
-                (jsontimestamp, icao),
-            )
-            sqldb.commit()
-
-            notification = (
-                f"A {planetype} "
-                f"operated by #{operator} "
-                f"has been detected with ICAO #{icao}, "
-                f"Registration #{registration} "
-                f"operating Flight Number #{flight}. "
-                f"https://radar.planespotters.net/?icao={icao}&showTrace={jsontoday}&zoom=7&timestamp={jsontimestamp} "
-                f"#planealert"
-            )
-            print(notification)
-            notify_url = os.environ.get(
-                "UPA_NOTIFY_URL", "ntfy://upaunconfigured/?priority=min"
-            )
-            apobj = apprise.Apprise()
-            apobj.add(notify_url)
-            apobj.notify(
-                body=notification,
-            )
+def notify(plane, range):
+    # If range is 0, it's a planealert; otherwise planefence
+    icao = plane["hex"].upper()
+    if "r" in plane.keys():
+        registration = (
+            plane["r"].upper().strip()
+        )  # Plane Registration from json data if it's there.
+    else:
+        registration = ""
+    if "ownOp" in plane.keys():
+        operator = (
+            plane["ownOp"].upper().strip().replace(" ", "_")
+        )  # Replace spaces with underscores to hashtags work.
+    else:
+        operator = ""
+    if "desc" in plane.keys():
+        planetype = plane["desc"].strip()  # desc requires extended fields enabled
+    elif "t" in plane.keys():
+        planetype = plane["t"].upper().strip()  # if not, we fall back to t
+    else:
+        planetype = ""
+    if "flight" in plane.keys():
+        flight = (
+            plane["flight"].upper().strip()
+        )  # Flight number from json data if it's there.
+    else:
+        flight = ""
+    jsontoday = datetime.datetime.fromtimestamp(jsontimestamp, datetime.UTC).strftime(
+        "%Y-%m-%d"
+    )
+    notification = (
+        f"A {planetype} "
+        f"operated by #{operator} "
+        f"has been detected with ICAO #{icao}, "
+        f"Registration #{registration} "
+        f"operating Flight Number #{flight}. "
+        f"https://radar.planespotters.net/?icao={icao}&showTrace={jsontoday}&zoom=7&timestamp={jsontimestamp} "
+        f"#planealert"
+    )
+    print(notification)
+    notify_url = os.environ.get(
+        "UPA_NOTIFY_URL", "ntfy://upaunconfigured/?priority=min"
+    )
+    apobj = apprise.Apprise()
+    apobj.add(notify_url)
+    apobj.notify(
+        body=notification,
+    )
 
 
 def main():
     build_database()
+    print("Sleeping 60 seconds for ultrafeeder start-up")
+    # time.sleep(60)
     while 1:
         poll_planes()
         print("Loop complete, sleeping 90 seconds")
