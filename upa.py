@@ -17,8 +17,7 @@ def build_database():
     print("Downloading alert csv")
     # The csv format only requires a list of ICAO/Hex in the first column
     # everything else isn't retained or used
-    
-    padb = {}  # Empty global dictionary to track lastseen for planealert
+
     database_url = os.environ.get(
         "UPA_PADATABASE_URL",
         "https://github.com/sdr-enthusiasts/plane-alert-db/raw/main/plane-alert-db.csv",
@@ -51,28 +50,29 @@ def poll_planes():
         elif planealert(plane):
             notify(plane, 0)
 
-
 def planealert(plane):
     icao = plane["hex"].upper()
     twohoursago = jsontimestamp - 7200
-    if icao in padb.keys() and padb[icao] >= twohoursago:
-        return 0
+    if icao not in padb.keys():
+        return False
+    if padb[icao] >= twohoursago:
+        return False
     padb[icao] = jsontimestamp
-    return 1
+    return True
 
 
 def planefence(plane):
     if "r_dst" not in plane.keys():
-        return 0
+        return False
     icao = plane["hex"].upper()
     twohoursago = jsontimestamp - 7200
     planerange = plane["r_dst"]
     if planerange > 2:
-        return 0
+        return False
     if icao in pfdb.keys() and pfdb[icao] >= twohoursago:
-        return 0
+        return False
     pfdb[icao] = jsontimestamp
-    return 1
+    return True
 
 
 def notify(plane, planerange):
