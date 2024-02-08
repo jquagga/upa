@@ -110,16 +110,14 @@ def planefence(plane):
 
 
 def notify(plane, planerange):
-    # If range is 0, it's a planealert; otherwise planefence
+    # If planerange is 0, it's a planealert; otherwise planefence
     icao = plane["hex"].upper()
     registration = (plane["r"].upper().strip()) if "r" in plane.keys() else ""
-
-    if "ownOp" in plane.keys():
-        operator = (
-            plane["ownOp"].upper().strip().replace(" ", "_")
-        )
-    else:
-        operator = ""
+    operator = (
+        (plane["ownOp"].upper().strip().replace(" ", "_"))
+        if "ownOp" in plane.keys()
+        else ""
+    )
 
     if "desc" in plane.keys():
         planetype = plane["desc"].strip()
@@ -129,7 +127,6 @@ def notify(plane, planerange):
         planetype = ""
 
     flight = (plane["flight"].upper().strip()) if "flight" in plane.keys() else ""
-
     jsontoday = datetime.datetime.fromtimestamp(jsontimestamp, datetime.UTC).strftime(
         "%Y-%m-%d"
     )
@@ -143,9 +140,15 @@ def notify(plane, planerange):
         f"#planealert"
     )
     print(notification)
-    notify_url = os.environ.get(
-        "UPA_NOTIFY_URL", "ntfy://upaunconfigured/?priority=min"
-    )
+    # If planerange is 0, this is planealert so go to that notification source
+    # if not, go to the PF URL
+    if planerange == 0:
+        notify_url = os.environ.get(
+            "UPA_NOTIFY_URL", "ntfy://upaunconfigured/?priority=min"
+        )
+    else:
+        notify_url = os.environ.get("UPA_PF_URL", "dbus://")
+
     apobj = apprise.Apprise()
     apobj.add(notify_url)
     apobj.notify(
