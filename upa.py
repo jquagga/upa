@@ -71,8 +71,8 @@ def poll_planes():
     # So we need to loop through each entity in aircraft
     for plane in adsbdata["aircraft"]:
         if planefence(plane):
-            range = plane["r_dst"]
-            notify(plane, range)
+            planerange = plane["r_dst"]
+            notify(plane, planerange)
         elif planealert(plane):
             notify(plane, 0)
 
@@ -81,11 +81,10 @@ def planealert(plane):
     icao = plane["hex"].upper()
     twohoursago = jsontimestamp - 7200
     cursor = sqldb.cursor()
-    papresent = cursor.execute(
+    if papresent := cursor.execute(
         "SELECT * FROM planes WHERE icao=? AND lastseen<?",
         (icao, twohoursago),
-    ).fetchall()
-    if papresent:
+    ).fetchall():
         cursor.execute(
             "UPDATE planes set lastseen=? WHERE icao=?",
             (jsontimestamp, icao),
@@ -97,66 +96,40 @@ def planealert(plane):
 
 
 def planefence(plane):
-    # First check if the plane even has a range value. If not,
-    # give up now.
-    if "r_dst" in plane.keys():
-        icao = plane["hex"].upper()
-        twohoursago = jsontimestamp - 7200
-        range = plane["r_dst"]
-        # Walking through the if's in order
-        # First, are we closer than 2 nmi?
-        if range <= 2:
-            # If we are closer, is this ICAO already in
-            # the dictionary (ie, we've seen it before?)
-            if icao in pfdb.keys():
-                # If it is in the dictionary, has it been more than
-                # 2 hours?  If so update lastseen and return 1
-                if pfdb[icao] < twohoursago:
-                    pfdb[icao] = jsontimestamp
-                    return 1
-                # If it hasn't been 2 hours, return 0.
-                else:
-                    return 0
-            # If the icao isn't in the dictionary it's new!
-            # so add its lastseen and return 1
-            else:
-                pfdb[icao] = jsontimestamp
-                return 1
-        # If range isn't 2, return 0
-        else:
-            return 0
-    # And if we don't have a range figure at all, return 0
-    else:
+    if "r_dst" not in plane.keys():
         return 0
+    icao = plane["hex"].upper()
+    twohoursago = jsontimestamp - 7200
+    planerange = plane["r_dst"]
+    if planerange > 2:
+        return 0
+    if icao in pfdb.keys() and pfdb[icao] >= twohoursago:
+        return 0
+    pfdb[icao] = jsontimestamp
+    return 1
 
 
-def notify(plane, range):
+def notify(plane, planerange):
     # If range is 0, it's a planealert; otherwise planefence
     icao = plane["hex"].upper()
-    if "r" in plane.keys():
-        registration = (
-            plane["r"].upper().strip()
-        )  # Plane Registration from json data if it's there.
-    else:
-        registration = ""
+    registration = (plane["r"].upper().strip()) if "r" in plane.keys() else ""
+
     if "ownOp" in plane.keys():
         operator = (
             plane["ownOp"].upper().strip().replace(" ", "_")
-        )  # Replace spaces with underscores to hashtags work.
+        )
     else:
         operator = ""
+
     if "desc" in plane.keys():
-        planetype = plane["desc"].strip()  # desc requires extended fields enabled
+        planetype = plane["desc"].strip()
     elif "t" in plane.keys():
-        planetype = plane["t"].upper().strip()  # if not, we fall back to t
+        planetype = plane["t"].upper().strip()
     else:
         planetype = ""
-    if "flight" in plane.keys():
-        flight = (
-            plane["flight"].upper().strip()
-        )  # Flight number from json data if it's there.
-    else:
-        flight = ""
+
+    flight = (plane["flight"].upper().strip()) if "flight" in plane.keys() else ""
+
     jsontoday = datetime.datetime.fromtimestamp(jsontimestamp, datetime.UTC).strftime(
         "%Y-%m-%d"
     )
