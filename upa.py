@@ -3,23 +3,22 @@
 """upa.py: microplane alert. Checks sdr ultrafeeder output 
 for interesting planes and issues notifications."""
 
-import csv
 import datetime
 import io
 import json
 import os
-import sqlite3
 import time
 
 import apprise
 import requests
 
-# Database initialized globally to move between functions
-sqldb = sqlite3.connect(":memory:")
-
 
 def build_database():
     print("Downloading alert csv")
+    # The csv format only requires a list of ICAO/Hex in the first column
+    # everything else isn't retained or used
+    
+    padb = {}  # Empty global dictionary to track lastseen for planealert
     database_url = os.environ.get(
         "UPA_PADATABASE_URL",
         "https://github.com/sdr-enthusiasts/plane-alert-db/raw/main/plane-alert-db.csv",
@@ -29,35 +28,11 @@ def build_database():
         timeout=5,
     )
     csvfile = io.StringIO(r.text)
-    contents = csv.reader(csvfile)
-    next(contents)  # Skip the header row in the csv file
-    print("Building database")
-    cursor = sqldb.cursor()
-    cursor.execute(
-        """
-        CREATE TABLE planes (
-        icao TEXT,
-        registration TEXT,
-        operator TEXT,
-        type TEXT,
-        icao_type TEXT,
-        cmpg TEXT,
-        tag1 TEXT,
-        tag2 TEXT,
-        tag3 TEXT,
-        category TEXT,
-        link TEXT
-    )
-    """
-    )
-    INSERT_RECORDS = "INSERT INTO planes (icao, registration, operator, type, icao_type, cmpg, tag1, tag2, tag3, category, link) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    # # This imports the "Stock csv into sqlite"
-    cursor.executemany(INSERT_RECORDS, contents)
-    # # And this adds a "lastseen column" at the end.
-    cursor.execute("ALTER TABLE planes ADD COLUMN lastseen NOT NULL DEFAULT 0;")
-    sqldb.commit()
+    global padb
+    padb = {line.split(",")[0]: 0 for line in csvfile}
+    # Empty global dictionary to track lastseen for planefence
     global pfdb
-    pfdb = {}  # Empty global dictionary to track lastseen for planefence
+    pfdb = {}
 
 
 def poll_planes():
@@ -80,19 +55,10 @@ def poll_planes():
 def planealert(plane):
     icao = plane["hex"].upper()
     twohoursago = jsontimestamp - 7200
-    cursor = sqldb.cursor()
-    if papresent := cursor.execute(
-        "SELECT * FROM planes WHERE icao=? AND lastseen<?",
-        (icao, twohoursago),
-    ).fetchall():
-        cursor.execute(
-            "UPDATE planes set lastseen=? WHERE icao=?",
-            (jsontimestamp, icao),
-        )
-        sqldb.commit()
-        return 1
-    else:
+    if icao in padb.keys() and padb[icao] >= twohoursago:
         return 0
+    padb[icao] = jsontimestamp
+    return 1
 
 
 def planefence(plane):
