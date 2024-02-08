@@ -4,4 +4,4 @@ RUN pip install apprise requests
 VOLUME ["/app"]
 WORKDIR /app
 COPY upa.py /app
-CMD python /app/upa.py
+CMD ["python","-u","/app/upa.py"]
