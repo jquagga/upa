@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""upa.py: microplane alert. Checks sdr ultrafeeder output 
+"""upa.py: microplane alert. Checks sdr ultrafeeder output
 for interesting planes and issues notifications."""
 
 import datetime
@@ -68,10 +68,13 @@ def planealert(plane):
 def planefence(plane):
     if "r_dst" not in plane.keys():
         return False
+    if "alt_baro" not in plane.keys():
+        return False
     icao = plane["hex"].upper()
     twohoursago = jsontimestamp - 7200
     planerange = plane["r_dst"]
-    if planerange > 2:
+    altitude = plane["alt_baro"]
+    if planerange > 2 or altitude > 5000:
         return False
     if icao in pfdb.keys() and pfdb[icao] >= twohoursago:
         return False
@@ -80,36 +83,40 @@ def planefence(plane):
 
 
 def notify(plane, planerange):
-    # If planerange is 0, it's a planealert; otherwise planefence
+    # Build variables first
     icao = plane["hex"].upper()
-    registration = (plane["r"].upper().strip()) if "r" in plane.keys() else ""
+    registration = (plane["r"].upper().strip()) if "r" in plane.keys() else False
     operator = (
         (plane["ownOp"].upper().strip().replace(" ", "_"))
         if "ownOp" in plane.keys()
         else ""
     )
-
     if "desc" in plane.keys():
         planetype = plane["desc"].strip()
     elif "t" in plane.keys():
         planetype = plane["t"].upper().strip()
     else:
-        planetype = ""
-
-    flight = (plane["flight"].upper().strip()) if "flight" in plane.keys() else ""
+        planetype = False
+    flight = (plane["flight"].upper().strip()) if "flight" in plane.keys() else False
     jsontoday = datetime.datetime.fromtimestamp(jsontimestamp, datetime.UTC).strftime(
         "%Y-%m-%d"
     )
-    notification = (
-        f"A {planetype} "
-        f"operated by #{operator} "
-        f"has been detected with ICAO #{icao}, "
-        f"Registration #{registration} "
-        f"operating Flight Number #{flight}. "
-        f"https://radar.planespotters.net/?icao={icao}&showTrace={jsontoday}&zoom=7&timestamp={jsontimestamp} "
-        f"#planealert"
+
+    # And now check if they have a value and if so add to notification
+    nplanetype = f"A {planetype} " if planetype else "A plane "
+    noperator = f"operated by #{operator} " if operator else ""
+    nicao = f"has been detected with ICAO #{icao}, " if icao else ""
+    nregistration = f"Registration #{registration} " if registration else ""
+    nflight = f"operating Flight Number #{flight}. " if flight else ""
+    nurl = (
+        f"https://radar.planespotters.net/?icao={icao}"
+        f"&showTrace={jsontoday}&zoom=7&timestamp={jsontimestamp} "
     )
+
+    # Glue the bits together and it's ready to go
+    notification = nplanetype + noperator + nicao + nregistration + nflight + nurl
     print(notification)
+
     # If planerange is 0, this is planealert so go to that notification source
     # if not, go to the PF URL
     if planerange == 0:
@@ -129,7 +136,7 @@ def notify(plane, planerange):
 def main():
     build_database()
     print("Sleeping 60 seconds for ultrafeeder start-up")
-    # time.sleep(60)
+    time.sleep(60)
     while 1:
         poll_planes()
         print("Loop complete, sleeping 90 seconds")
