@@ -4,7 +4,6 @@
 for interesting planes and issues notifications."""
 
 import datetime
-import io
 import json
 import os
 import time
@@ -14,6 +13,8 @@ import requests
 
 
 def build_database():
+    import io
+
     print("Downloading alert csv")
     # The csv format only requires a list of ICAO/Hex in the first column
     # everything else isn't retained or used
@@ -44,11 +45,14 @@ def poll_planes():
     # The json file format is a nest of all of the planes under 'aircraft'
     # So we need to loop through each entity in aircraft
     for plane in adsbdata["aircraft"]:
-        if planefence(plane):
-            planerange = plane["r_dst"]
-            notify(plane, planerange)
-        elif planealert(plane):
-            notify(plane, 0)
+        # If we don't have a position, skip this plane.
+        if "lastPosition" in plane.keys():
+            if planefence(plane):
+                planerange = plane["r_dst"]
+                notify(plane, planerange)
+            elif planealert(plane):
+                notify(plane, 0)
+
 
 def planealert(plane):
     icao = plane["hex"].upper()
