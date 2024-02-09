@@ -82,6 +82,15 @@ def planefence(plane):
     return True
 
 
+def planespotter(icao):
+    planespotter_url = f"https://api.planespotters.net/pub/photos/hex/{icao}"
+    planeresponse = requests.get(planespotter_url, timeout=5)
+    planespotterdb = json.loads(planeresponse.text)
+    if planespotterdb["photos"]:
+        return planespotterdb["photos"][0]["link"]
+    return False
+
+
 def notify(plane, planerange):
     # Build variables first
     icao = plane["hex"].upper()
@@ -102,19 +111,24 @@ def notify(plane, planerange):
         "%Y-%m-%d"
     )
 
+    photourl = planespotter(icao)
+
     # And now check if they have a value and if so add to notification
     nplanetype = f"A {planetype} " if planetype else "A plane "
     noperator = f"operated by #{operator} " if operator else ""
     nicao = f"has been detected with ICAO #{icao}, " if icao else ""
     nregistration = f"Registration #{registration} " if registration else ""
     nflight = f"operating Flight Number #{flight}. " if flight else ""
+    nphoto = f"{photourl} " if photourl else ""
     nurl = (
-        f"https://radar.planespotters.net/?icao={icao}"
-        f"&showTrace={jsontoday}&zoom=7&timestamp={jsontimestamp} "
+        f"https://globe.airplanes.live/"
+        f"?icao={icao}&showTrace={jsontoday}&zoom=7&timestamp={jsontimestamp} "
     )
 
     # Glue the bits together and it's ready to go
-    notification = nplanetype + noperator + nicao + nregistration + nflight + nurl
+    notification = (
+        nplanetype + noperator + nicao + nregistration + nflight + nphoto + nurl
+    )
     print(notification)
 
     # If planerange is 0, this is planealert so go to that notification source
@@ -125,6 +139,11 @@ def notify(plane, planerange):
         )
     else:
         notify_url = os.environ.get("UPA_PF_URL", "dbus://")
+
+    # This allows the use of an Idempotency key if configured
+    # for mastodon.
+    if "ICAOKEY" in notify_url:
+        notify_url = notify_url.replace("ICAOKEY", icao)
 
     apobj = apprise.Apprise()
     apobj.add(notify_url)
