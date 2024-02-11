@@ -127,7 +127,14 @@ def notify(plane, planerange):
 
     # Glue the bits together and it's ready to go
     notification = (
-        nplanetype + noperator + nicao + nregistration + nflight + nphoto + nurl
+        nplanetype
+        + noperator
+        + nicao
+        + nregistration
+        + nflight
+        + nphoto
+        + nurl
+        + "#planealert"
     )
     print(notification)
 
