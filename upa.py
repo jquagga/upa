@@ -164,8 +164,11 @@ def main():
     print("Sleeping 60 seconds for ultrafeeder start-up")
     time.sleep(60)
     while 1:
+        start_time = time.perf_counter()
         poll_planes()
-        print("Loop complete, sleeping 90 seconds")
+        stop_time = time.perf_counter()
+        loop_time = round(stop_time - start_time, 4)
+        print(f"Loop complete in {loop_time} seconds, sleeping 90 seconds")
         time.sleep(90)
 
 
