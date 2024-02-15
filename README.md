@@ -25,7 +25,6 @@ upa is configured entirely by environmental variables.
 ```
 - UPA_NOTIFY_URL - An apprise URL stating where to post planealert notifications.
   It can be comma separated so you can message multiple services at once.
-- UPA_PF_URL - Another apprise URL, this one for planefence notifications.
 
 - UPA_PADATABASE_URL - The URL of interesting planes to send alerts on.
   By default, this is the SDR Enthusiasts list (same as planefence proper).

@@ -32,9 +32,6 @@ def build_database():
     csvfile = io.StringIO(r.text)
     global padb
     padb = {line.split(",")[0]: 0 for line in csvfile}
-    # Empty global dictionary to track lastseen for planefence
-    global pfdb
-    pfdb = {}
 
 
 def poll_planes(json_url):
@@ -47,11 +44,8 @@ def poll_planes(json_url):
     # So we need to loop through each entity in aircraft
     for plane in adsbdata["aircraft"]:
         # If we don't have a position, skip this plane.
-        if plane.get("lat", False):
-            if planefence(plane):
-                notify(plane, plane.get("r_dst"))
-            elif planealert(plane):
-                notify(plane, 0)
+        if planealert(plane):
+            notify(plane)
 
 
 def planealert(plane):
@@ -60,17 +54,6 @@ def planealert(plane):
     if padb.get(icao, jsontimestamp) >= twohoursago:
         return False
     padb[icao] = jsontimestamp
-    return True
-
-
-def planefence(plane):
-    if plane.get("r_dst", 100000) > 2 or plane.get("alt_baro", 100000) > 8000:
-        return False
-    icao = plane.get("hex", "").upper()
-    twohoursago = jsontimestamp - 7200
-    if pfdb.get(icao, jsontimestamp) >= twohoursago:
-        return False
-    pfdb[icao] = jsontimestamp
     return True
 
 
@@ -83,7 +66,7 @@ def planespotter(icao):
     return False
 
 
-def notify(plane, planerange):
+def notify(plane):
     # Build variables first
     icao = plane.get("hex", "").upper()
     registration = (plane["r"].upper().strip()) if "r" in plane.keys() else False
@@ -118,19 +101,16 @@ def notify(plane, planerange):
     )
 
     # Glue the bits together and it's ready to go
-    notification = (f"{nplanetype}{noperator}{nicao}{nregistration}"
-                    f"{nflight}{nphoto}{nurl}#planealert")
+    notification = (
+        f"{nplanetype}{noperator}{nicao}{nregistration}"
+        f"{nflight}{nphoto}{nurl}#planealert"
+    )
 
     print(notification)
 
-    # If planerange is 0, this is planealert so go to that notification source
-    # if not, go to the PF URL
-    if planerange == 0:
-        notify_url = os.environ.get(
-            "UPA_NOTIFY_URL", "ntfy://upaunconfigured/?priority=min"
-        )
-    else:
-        notify_url = os.environ.get("UPA_PF_URL", "dbus://")
+    notify_url = os.environ.get(
+        "UPA_NOTIFY_URL", "ntfy://upaunconfigured/?priority=min"
+    )
 
     # This allows the use of an Idempotency key if configured
     # for mastodon.
