@@ -46,7 +46,7 @@ def poll_planes():
     # So we need to loop through each entity in aircraft
     for plane in adsbdata["aircraft"]:
         # If we don't have a position, skip this plane.
-        if plane.get("lat") is not None:
+        if plane.get('lat') is not None:
             if planefence(plane):
                 planerange = plane["r_dst"]
                 notify(plane, planerange)
