@@ -1,4 +1,4 @@
-FROM python:slim
+FROM pypy:slim
 RUN pip install apprise requests
 
 VOLUME ["/app"]
