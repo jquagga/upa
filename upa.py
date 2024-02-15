@@ -4,11 +4,13 @@
 for interesting planes and issues notifications."""
 
 import datetime
-import json
+
+# import json
 import os
 import time
 
 import apprise
+import orjson
 import requests
 
 
@@ -35,48 +37,38 @@ def build_database():
     pfdb = {}
 
 
-def poll_planes():
+def poll_planes(json_url):
     print("Starting a polling loop")
-    json_url = os.environ.get("UPA_JSON_URL", "http://ultrafeeder/data/aircraft.json")
     response = requests.get(json_url, timeout=5)
-    adsbdata = json.loads(response.text)
+    adsbdata = orjson.loads(response.text)
     global jsontimestamp  # Needs to be global as it's not in the plane object
     jsontimestamp = int(adsbdata["now"])
     # The json file format is a nest of all of the planes under 'aircraft'
     # So we need to loop through each entity in aircraft
     for plane in adsbdata["aircraft"]:
         # If we don't have a position, skip this plane.
-        if plane.get("lat") is not None:
+        if plane.get("lat", False):
             if planefence(plane):
-                planerange = plane["r_dst"]
-                notify(plane, planerange)
+                notify(plane, plane.get("r_dst"))
             elif planealert(plane):
                 notify(plane, 0)
 
 
 def planealert(plane):
-    icao = plane["hex"].upper()
+    icao = plane.get("hex", "").upper()
     twohoursago = jsontimestamp - 7200
-    if icao not in padb.keys():
-        return False
-    if padb[icao] >= twohoursago:
+    if padb.get(icao, jsontimestamp) >= twohoursago:
         return False
     padb[icao] = jsontimestamp
     return True
 
 
 def planefence(plane):
-    if "r_dst" not in plane.keys():
+    if plane.get("r_dst", 100000) > 2 or plane.get("alt_baro", 100000) > 8000:
         return False
-    if "alt_baro" not in plane.keys():
-        return False
-    icao = plane["hex"].upper()
+    icao = plane.get("hex", "").upper()
     twohoursago = jsontimestamp - 7200
-    planerange = plane["r_dst"]
-    altitude = plane["alt_baro"]
-    if planerange > 2 or altitude > 5000:
-        return False
-    if icao in pfdb.keys() and pfdb[icao] >= twohoursago:
+    if pfdb.get(icao, jsontimestamp) >= twohoursago:
         return False
     pfdb[icao] = jsontimestamp
     return True
@@ -85,7 +77,7 @@ def planefence(plane):
 def planespotter(icao):
     planespotter_url = f"https://api.planespotters.net/pub/photos/hex/{icao}"
     planeresponse = requests.get(planespotter_url, timeout=5)
-    planespotterdb = json.loads(planeresponse.text)
+    planespotterdb = orjson.loads(planeresponse.text)
     if planespotterdb["photos"]:
         return planespotterdb["photos"][0]["link"]
     return False
@@ -93,7 +85,7 @@ def planespotter(icao):
 
 def notify(plane, planerange):
     # Build variables first
-    icao = plane["hex"].upper()
+    icao = plane.get("hex", "").upper()
     registration = (plane["r"].upper().strip()) if "r" in plane.keys() else False
     operator = (
         (plane["ownOp"].upper().strip().replace(" ", "_"))
@@ -126,16 +118,9 @@ def notify(plane, planerange):
     )
 
     # Glue the bits together and it's ready to go
-    notification = (
-        nplanetype
-        + noperator
-        + nicao
-        + nregistration
-        + nflight
-        + nphoto
-        + nurl
-        + "#planealert"
-    )
+    notification = (f"{nplanetype}{noperator}{nicao}{nregistration}"
+                    f"{nflight}{nphoto}{nurl}#planealert")
+
     print(notification)
 
     # If planerange is 0, this is planealert so go to that notification source
@@ -162,10 +147,11 @@ def notify(plane, planerange):
 def main():
     build_database()
     print("Sleeping 60 seconds for ultrafeeder start-up")
+    json_url = os.environ.get("UPA_JSON_URL", "http://ultrafeeder/data/aircraft.json")
     time.sleep(60)
     while 1:
         start_time = time.perf_counter()
-        poll_planes()
+        poll_planes(json_url)
         stop_time = time.perf_counter()
         loop_time = round(stop_time - start_time, 4)
         print(f"Loop complete in {loop_time} seconds, sleeping 90 seconds")
