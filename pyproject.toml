@@ -1,6 +1,6 @@
 [project]
 name = "upa"
-dependencies = ["apprise", "requests"]
+dependencies = ["apprise", "orjson"]
 requires-python = ">=3.10"
 authors = [{ name = "Justin Settle" }]
 description = "microplane alert reads data from tar1090, looks for interesting planes and sends notifications"
