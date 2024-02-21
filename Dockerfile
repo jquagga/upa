@@ -1,5 +1,6 @@
 FROM python:slim@sha256:5c73034c2bc151596ee0f1335610735162ee2b148816710706afec4757ad5b1e
-RUN pip install --no-cache-dir apprise==1.7.2 orjson==3.9.14
+COPY requirements.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 VOLUME ["/app"]
 WORKDIR /app
