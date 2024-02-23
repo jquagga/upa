@@ -11,7 +11,7 @@ RUN apt-get update && \
 
 # Copy the virtualenv into a distroless image
 FROM gcr.io/distroless/python3-debian12:nonroot@sha256:5c7661ddc1f43e50ee97404b12146d34ac34afc9ab7e713c3bac189efb074e10
-COPY --from=build-venv /venv /venv
+COPY --from=build /venv /venv
 WORKDIR /app
 COPY upa.py /app
 ENTRYPOINT ["/venv/bin/python3","-u","/app/upa.py"]
