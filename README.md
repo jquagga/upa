@@ -1,6 +1,9 @@
 # μPlaneAlert - microPlaneAlert
 
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/jquagga/upa/badge)](https://securityscorecards.dev/viewer/?uri=github.com/jquagga/upa)
+[![Bandit](https://github.com/jquagga/upa/actions/workflows/bandit.yml/badge.svg)](https://github.com/jquagga/upa/actions/workflows/bandit.yml)
+[![Docker](https://github.com/jquagga/upa/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/jquagga/upa/actions/workflows/docker-publish.yml)
+
 
 μPlaneAlert is small python file which polls a tar1090 instance to report on interesting planes seen by a SDR. This is a subset of the functionality provided by [docker-planefence](https://github.com/sdr-enthusiasts/docker-planefence) written by Ramon F. Kolb. It's intended to run entirely in RAM and sleep between 90 second runs. It's one file, one process. Less functionally but easier on systems with less resources.
 
@@ -55,6 +58,6 @@ I'm probably going to resist feature creep as this was always supposed to be a b
 ## Credits
 
 - [Ramon F. Kolb](https://github.com/sdr-enthusiasts/docker-planefence) and docker-planefence are the basis for which this code is based on.
-- [wreadsb/tar1090/](https://github.com/wiedehopf/readsb) is the core of everything upa is producing. It is the upstream data source.
+- [wreadsb/tar1090/@wiedehopf](https://github.com/wiedehopf/readsb) is the core of everything upa is producing. It is the upstream data source.
 - [SDR Enthusiasts](https://github.com/sdr-enthusiasts) maintain a dozen useful images for adsb, acars, and other radio related projects.
 - [Apprise](https://github.com/caronc/apprise) powers the notification system. Drop the notification to the apprise url and it handles it from there. upa wouldn't do what it does without it.
