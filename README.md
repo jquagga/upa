@@ -4,12 +4,11 @@
 [![Bandit](https://github.com/jquagga/upa/actions/workflows/bandit.yml/badge.svg)](https://github.com/jquagga/upa/actions/workflows/bandit.yml)
 [![Docker](https://github.com/jquagga/upa/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/jquagga/upa/actions/workflows/docker-publish.yml)
 
-
 μPlaneAlert is small python file which polls a tar1090 instance to report on interesting planes seen by a SDR. This is a subset of the functionality provided by [docker-planefence](https://github.com/sdr-enthusiasts/docker-planefence) written by Ramon F. Kolb. It's intended to run entirely in RAM and sleep between 90 second runs. It's one file, one process. Less functionally but easier on systems with less resources.
 
 ## Installation
 
-Traditionally you would run upa in the docker-compose.yml stack along with ultrafeeder. It's default configuration is set to directly access the ultrafeeder container and read aircraft data, however that is configurable and it can run anywhere that has access to the aircraft.json file.
+Traditionally you would run upa in the docker-compose.yml stack along with ultrafeeder. It's default configuration is set to directly access the ultrafeeder container and read aircraft data, however that is configurable and it can run anywhere that has access to the either aircraft.json file (commonly from tar1090) or the net-api port of readsb (accessable if you have direct access to the ultrafeeder or readsb container **even if you aren't running tar1090**).
 
 ```yaml
 services:
