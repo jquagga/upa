@@ -127,7 +127,7 @@ def notify(plane):
 def main():
     build_database()
     print("Sleeping 60 seconds for ultrafeeder start-up")
-    json_url = os.environ.get("UPA_JSON_URL", "http://ultrafeeder/data/aircraft.json")
+    json_url = os.environ.get("UPA_JSON_URL", "http://ultrafeeder:30152/?all_with_pos")
     time.sleep(60)
     while 1:
         start_time = time.perf_counter()
