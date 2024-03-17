@@ -6,15 +6,21 @@ updates:
       interval: weekly
     commit-message:
       prefix: ":seedling:"
+    assignees:
+      - "jquagga"
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
     commit-message:
       prefix: ":seedling:"
+    assignees:
+      - "jquagga"
   - package-ecosystem: pip
     directory: /
     schedule:
       interval: weekly
     commit-message:
       prefix: ":seedling:"
+    assignees:
+      - "jquagga"
