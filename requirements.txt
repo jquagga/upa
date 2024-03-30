@@ -1,2 +1,2 @@
-apprise==1.7.4 
+apprise==1.7.5 
 orjson==3.10.0
