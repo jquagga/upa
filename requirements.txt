@@ -1,2 +1,2 @@
 apprise==1.8.0 
-orjson==3.10.4
+orjson==3.10.5
